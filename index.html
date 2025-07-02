@@ -4,7 +4,6 @@
   <head>
     <meta charset="UTF-8" />
     <title>Driver Management UI</title>
-    <!-- styles remain unchanged -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -70,42 +69,46 @@
         padding: 10px;
         border: 1px solid #ccc;
       }
-      #recordCount {
-        margin-top: 10px;
-        font-weight: bold;
-      }
     </style>
   </head>
   <body>
-    <!-- Sidebar remains the same -->
     <div class="sidebar">
       <h2>API Credentials</h2>
       <label for="entityRef">Entity Reference</label>
       <input type="text" id="entityRef" />
+
       <label for="apiKey">API Key</label>
       <input type="text" id="apiKey" />
+
       <label for="clientId">Client ID</label>
       <input type="text" id="clientId" />
+
       <label for="clientSecret">Client Secret</label>
       <input type="text" id="clientSecret" />
+
       <label for="apiScopeRef">API Scope Ref</label>
       <input type="text" id="apiScopeRef" />
+
       <button onclick="generateToken()">Generate Access Token</button>
+
       <label for="bearerToken">Bearer Token</label>
       <input type="text" id="bearerToken" />
     </div>
 
-    <!-- Content section with driver form and table -->
     <div class="content">
       <h2>Driver Management</h2>
       <form id="driverForm">
         <label for="driverId">Driver ID</label>
         <input type="text" id="driverId" required />
+
         <label for="firstName">First Name</label>
         <input type="text" id="firstName" required />
+
         <label for="lastName">Last Name</label>
         <input type="text" id="lastName" required />
+
         <input type="hidden" id="driverCrn" />
+
         <button type="submit">Create or Update Driver</button>
       </form>
 
@@ -117,11 +120,9 @@
       </select>
 
       <button onclick="fetchDrivers()">Fetch Drivers</button>
-      <div id="recordCount"></div>
       <div id="response"></div>
       <label for="payload">Last Payload Sent:</label>
       <textarea id="payload" rows="6" readonly></textarea>
-
       <table id="driverTable">
         <thead>
           <tr>
@@ -137,7 +138,6 @@
       </table>
     </div>
 
-    <!-- script remains unchanged except for record count -->
     <script>
       const driverCrnMap = {};
 
@@ -153,20 +153,60 @@
           const saved = localStorage.getItem(id);
           if (saved) document.getElementById(id).value = saved;
         });
-      };
-
-      [
-        "entityRef",
+      }[
+        ("entityRef",
         "apiKey",
         "clientId",
         "clientSecret",
         "apiScopeRef",
-        "bearerToken",
+        "bearerToken")
       ].forEach(id => {
         document.getElementById(id).addEventListener("input", e => {
           localStorage.setItem(id, e.target.value);
         });
       });
+
+      async function generateToken() {
+        const entityRef = document.getElementById("entityRef").value;
+        const apiKey = document.getElementById("apiKey").value;
+        const clientId = document.getElementById("clientId").value;
+        const clientSecret = document.getElementById("clientSecret").value;
+        const apiScopeRef = document.getElementById("apiScopeRef").value;
+
+        try {
+          const loginResponse = await fetch(
+            `https://api.us.commandalkon.io/v4/services/authnz/${entityRef}/api/login`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": apiKey,
+              },
+              body: JSON.stringify({ clientId, clientSecret, apiScopeRef }),
+            }
+          );
+          const loginData = await loginResponse.json();
+          const refreshToken = loginData.refresh_token;
+
+          const tokenResponse = await fetch(
+            `https://api.us.commandalkon.io/v4/services/authnz/${entityRef}/api/tokens/refresh-access-token`,
+            {
+              headers: {
+                "x-api-key": apiKey,
+                authorization: `Bearer ${refreshToken}`,
+              },
+            }
+          );
+          const tokenData = await tokenResponse.json();
+          document.getElementById("bearerToken").value = tokenData.access_token;
+          localStorage.setItem("bearerToken", tokenData.access_token);
+          document.getElementById("response").textContent =
+            "✅ Access token generated successfully.";
+        } catch (err) {
+          document.getElementById("response").textContent =
+            "Error generating token: " + err.message;
+        }
+      }
 
       async function fetchDrivers() {
         const entityRef = document.getElementById("entityRef").value;
@@ -185,44 +225,136 @@
             }
           );
           const data = await res.json();
-          const filtered = data.filter(
-            d => filter === "ALL" || d.status === filter
-          );
-          document.getElementById(
-            "recordCount"
-          ).textContent = `Records found: ${filtered.length}`;
-
           const table = document.querySelector("#driverTable tbody");
           table.innerHTML = "";
-          filtered.forEach(driver => {
-            driverCrnMap[driver.id] = driver.crn;
-            const row = table.insertRow();
-            row.innerHTML = `
-              <td>${driver.id}</td>
-              <td>${driver.firstName}</td>
-              <td>${driver.lastName}</td>
-              <td>${driver.status}</td>
-              <td>${driver.crn}</td>
-              <td>
-                <button onclick="fillForm('${driver.id}', '${
-              driver.firstName
-            }', '${driver.lastName}', '${driver.crn}')">Edit</button>
-                <button onclick="${
-                  driver.status === "ACTIVE"
-                    ? `deactivateDriver('${driver.crn}', '${driver.id}')`
-                    : `reactivateDriver('${driver.crn}', '${driver.id}')`
-                }">${
-              driver.status === "ACTIVE" ? "Deactivate" : "Reactivate"
-            }</button>
-              </td>`;
-          });
+          data
+            .filter(d => filter === "ALL" || d.status === filter)
+            .forEach(driver => {
+              driverCrnMap[driver.id] = driver.crn;
+              const row = table.insertRow();
+              row.innerHTML = `
+            <td>${driver.id}</td>
+            <td>${driver.firstName}</td>
+            <td>${driver.lastName}</td>
+            <td>${driver.status}</td>
+            <td>${driver.crn}</td>
+            <td>
+              <button onclick="fillForm('${driver.id}', '${
+                driver.firstName
+              }', '${driver.lastName}', '${driver.crn}')">Edit</button>
+              <button onclick="${
+                driver.status === "ACTIVE"
+                  ? `deactivateDriver('${driver.crn}', '${driver.id}')`
+                  : `reactivateDriver('${driver.crn}', '${driver.id}')`
+              }">${
+                driver.status === "ACTIVE" ? "Deactivate" : "Reactivate"
+              }</button>
+            </td>`;
+            });
         } catch (err) {
           document.getElementById("response").textContent =
             "Error fetching drivers: " + err.message;
         }
       }
 
-      // Other script functions (generateToken, form submit, updateDriverStatus, etc.) stay unchanged...
+      function fillForm(id, firstName, lastName, crn) {
+        document.getElementById("driverId").value = id;
+        document.getElementById("firstName").value = firstName;
+        document.getElementById("lastName").value = lastName;
+        document.getElementById("driverCrn").value = crn;
+      }
+
+      async function deactivateDriver(crn, id) {
+        if (!confirm(`Deactivate driver ${id}?`)) return;
+        await updateDriverStatus(crn, id, "INACTIVE");
+      }
+
+      async function reactivateDriver(crn, id) {
+        if (!confirm(`Reactivate driver ${id}?`)) return;
+        await updateDriverStatus(crn, id, "ACTIVE");
+      }
+
+      async function updateDriverStatus(crn, id, status) {
+        const entityRef = document.getElementById("entityRef").value;
+        const apiKey = document.getElementById("apiKey").value;
+        const token = document.getElementById("bearerToken").value;
+        const url = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${crn}`;
+        const payload = { status };
+        document.getElementById("payload").value = JSON.stringify(
+          payload,
+          null,
+          2
+        );
+
+        try {
+          const response = await fetch(url, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": apiKey,
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          });
+          const result = await response.json();
+          document.getElementById("response").textContent =
+            `✅ Driver ${id} ${status.toLowerCase()}d.\n` +
+            JSON.stringify(result, null, 2);
+          fetchDrivers();
+        } catch (err) {
+          document.getElementById("response").textContent =
+            "Error updating status: " + err.message;
+        }
+      }
+
+      document
+        .getElementById("driverForm")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          const entityRef = document.getElementById("entityRef").value;
+          const apiKey = document.getElementById("apiKey").value;
+          const token = document.getElementById("bearerToken").value;
+          const driverId = document.getElementById("driverId").value;
+          const driverCrn = document.getElementById("driverCrn").value;
+
+          const driverData = {
+            id: driverId,
+            firstName: document.getElementById("firstName").value,
+            lastName: document.getElementById("lastName").value,
+            status: "ACTIVE",
+          };
+
+          const putUrl = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${driverCrn}`;
+          const postUrl = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers`;
+          document.getElementById("payload").value = JSON.stringify(
+            driverData,
+            null,
+            2
+          );
+
+          try {
+            const usePut = Boolean(driverCrn);
+            const response = await fetch(usePut ? putUrl : postUrl, {
+              method: usePut ? "PUT" : "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": apiKey,
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(driverData),
+            });
+
+            const result = await response.json();
+            document.getElementById("response").textContent =
+              `✅ ${usePut ? "Updated" : "Created"} driver successfully.\n` +
+              JSON.stringify(result, null, 2);
+            fetchDrivers();
+          } catch (err) {
+            document.getElementById("response").textContent =
+              "Error: " + err.message;
+          }
+        });
     </script>
   </body>
 </html>

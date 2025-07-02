@@ -207,7 +207,7 @@
 
         try {
           const res = await fetch(
-            `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers`,
+            `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers?includeInactive=true`,
             {
               headers: {
                 "x-api-key": apiKey,

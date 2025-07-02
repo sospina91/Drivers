@@ -123,7 +123,7 @@
     </div>
 
     <script>
-      // Load saved credentials on page load
+      // Restore saved credentials on load
       window.onload = function () {
         [
           "entityRef",
@@ -137,7 +137,7 @@
           if (saved) document.getElementById(id).value = saved;
         });
       }[
-        // Save credential changes to localStorage
+        // Save credentials on change
         ("entityRef",
         "apiKey",
         "clientId",
@@ -157,36 +157,38 @@
         const clientSecret = document.getElementById("clientSecret").value;
         const apiScopeRef = document.getElementById("apiScopeRef").value;
 
-        const loginUrl = `https://api.us.commandalkon.io/v4/services/authnz/${entityRef}/api/login`;
-
         try {
-          const loginResponse = await fetch(loginUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-api-key": apiKey,
-            },
-            body: JSON.stringify({ clientId, clientSecret, apiScopeRef }),
-          });
+          const loginResponse = await fetch(
+            `https://api.us.commandalkon.io/v4/services/authnz/${entityRef}/api/login`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": apiKey,
+              },
+              body: JSON.stringify({ clientId, clientSecret, apiScopeRef }),
+            }
+          );
           const loginData = await loginResponse.json();
           const refreshToken = loginData.refresh_token;
 
-          const tokenUrl = `https://api.us.commandalkon.io/v4/services/authnz/${entityRef}/api/tokens/refresh-access-token`;
-          const tokenResponse = await fetch(tokenUrl, {
-            method: "GET",
-            headers: {
-              "x-api-key": apiKey,
-              authorization: `Bearer ${refreshToken}`,
-            },
-          });
+          const tokenResponse = await fetch(
+            `https://api.us.commandalkon.io/v4/services/authnz/${entityRef}/api/tokens/refresh-access-token`,
+            {
+              headers: {
+                "x-api-key": apiKey,
+                authorization: `Bearer ${refreshToken}`,
+              },
+            }
+          );
           const tokenData = await tokenResponse.json();
           document.getElementById("bearerToken").value = tokenData.access_token;
           localStorage.setItem("bearerToken", tokenData.access_token);
           document.getElementById("response").textContent =
-            "Token generated successfully";
+            "✅ Access token generated successfully.";
         } catch (err) {
           document.getElementById("response").textContent =
-            "Token error: " + err.message;
+            "Error generating token: " + err.message;
         }
       }
 
@@ -194,15 +196,17 @@
         const entityRef = document.getElementById("entityRef").value;
         const apiKey = document.getElementById("apiKey").value;
         const token = document.getElementById("bearerToken").value;
-        const url = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers`;
 
         try {
-          const res = await fetch(url, {
-            headers: {
-              "x-api-key": apiKey,
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          const res = await fetch(
+            `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers`,
+            {
+              headers: {
+                "x-api-key": apiKey,
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
           const data = await res.json();
           const table = document.querySelector("#driverTable tbody");
           table.innerHTML = "";
@@ -236,24 +240,22 @@
         const apiKey = document.getElementById("apiKey").value;
         const token = document.getElementById("bearerToken").value;
 
-        const url = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${id}`;
-
         try {
-          const response = await fetch(url, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              "x-api-key": apiKey,
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ id, status: "INACTIVE" }),
-          });
-          const result = await response.json();
-          document.getElementById("response").textContent = JSON.stringify(
-            result,
-            null,
-            2
+          const response = await fetch(
+            `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${id}`,
+            {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": apiKey,
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ id, status: "INACTIVE" }),
+            }
           );
+          const result = await response.json();
+          document.getElementById("response").textContent =
+            `✅ Driver ${id} deactivated.\n` + JSON.stringify(result, null, 2);
           fetchDrivers();
         } catch (err) {
           document.getElementById("response").textContent =
@@ -291,7 +293,7 @@
               },
             });
 
-            const isExisting = checkRes.ok;
+            const isExisting = checkRes.status === 200;
 
             const response = await fetch(isExisting ? putUrl : postUrl, {
               method: isExisting ? "PUT" : "POST",
@@ -304,11 +306,10 @@
             });
 
             const result = await response.json();
-            document.getElementById("response").textContent = JSON.stringify(
-              result,
-              null,
-              2
-            );
+            document.getElementById("response").textContent =
+              `✅ ${
+                isExisting ? "Updated" : "Created"
+              } driver successfully.\n` + JSON.stringify(result, null, 2);
             fetchDrivers();
           } catch (err) {
             document.getElementById("response").textContent =

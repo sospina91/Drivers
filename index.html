@@ -114,6 +114,7 @@
             <th>ID</th>
             <th>First Name</th>
             <th>Last Name</th>
+            <th>Status</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -122,6 +123,33 @@
     </div>
 
     <script>
+      // Load saved credentials on page load
+      window.onload = function () {
+        [
+          "entityRef",
+          "apiKey",
+          "clientId",
+          "clientSecret",
+          "apiScopeRef",
+          "bearerToken",
+        ].forEach(id => {
+          const saved = localStorage.getItem(id);
+          if (saved) document.getElementById(id).value = saved;
+        });
+      }[
+        // Save credential changes to localStorage
+        ("entityRef",
+        "apiKey",
+        "clientId",
+        "clientSecret",
+        "apiScopeRef",
+        "bearerToken")
+      ].forEach(id => {
+        document.getElementById(id).addEventListener("input", e => {
+          localStorage.setItem(id, e.target.value);
+        });
+      });
+
       async function generateToken() {
         const entityRef = document.getElementById("entityRef").value;
         const apiKey = document.getElementById("apiKey").value;
@@ -138,11 +166,7 @@
               "Content-Type": "application/json",
               "x-api-key": apiKey,
             },
-            body: JSON.stringify({
-              clientId,
-              clientSecret,
-              apiScopeRef,
-            }),
+            body: JSON.stringify({ clientId, clientSecret, apiScopeRef }),
           });
           const loginData = await loginResponse.json();
           const refreshToken = loginData.refresh_token;
@@ -157,6 +181,7 @@
           });
           const tokenData = await tokenResponse.json();
           document.getElementById("bearerToken").value = tokenData.access_token;
+          localStorage.setItem("bearerToken", tokenData.access_token);
           document.getElementById("response").textContent =
             "Token generated successfully";
         } catch (err) {
@@ -187,9 +212,10 @@
             <td>${driver.id}</td>
             <td>${driver.firstName}</td>
             <td>${driver.lastName}</td>
+            <td>${driver.status}</td>
             <td>
               <button onclick="fillForm('${driver.id}', '${driver.firstName}', '${driver.lastName}')">Edit</button>
-              <button onclick="deleteDriver('${driver.id}')">Delete</button>
+              <button onclick="deactivateDriver('${driver.id}')">Deactivate</button>
             </td>`;
           });
         } catch (err) {
@@ -204,8 +230,8 @@
         document.getElementById("lastName").value = lastName;
       }
 
-      async function deleteDriver(id) {
-        if (!confirm(`Are you sure you want to delete driver ${id}?`)) return;
+      async function deactivateDriver(id) {
+        if (!confirm(`Deactivate driver ${id}?`)) return;
         const entityRef = document.getElementById("entityRef").value;
         const apiKey = document.getElementById("apiKey").value;
         const token = document.getElementById("bearerToken").value;
@@ -213,19 +239,25 @@
         const url = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${id}`;
 
         try {
-          const res = await fetch(url, {
-            method: "DELETE",
+          const response = await fetch(url, {
+            method: "PUT",
             headers: {
+              "Content-Type": "application/json",
               "x-api-key": apiKey,
               Authorization: `Bearer ${token}`,
             },
+            body: JSON.stringify({ id, status: "INACTIVE" }),
           });
-          document.getElementById("response").textContent =
-            "Deleted driver: " + id;
+          const result = await response.json();
+          document.getElementById("response").textContent = JSON.stringify(
+            result,
+            null,
+            2
+          );
           fetchDrivers();
         } catch (err) {
           document.getElementById("response").textContent =
-            "Error deleting driver: " + err.message;
+            "Error deactivating driver: " + err.message;
         }
       }
 

@@ -103,6 +103,8 @@
         <label for="lastName">Last Name</label>
         <input type="text" id="lastName" required />
 
+        <input type="hidden" id="driverCrn" />
+
         <button type="submit">Create or Update Driver</button>
       </form>
 
@@ -115,6 +117,7 @@
             <th>First Name</th>
             <th>Last Name</th>
             <th>Status</th>
+            <th>CRN</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -123,7 +126,8 @@
     </div>
 
     <script>
-      // Restore saved credentials on load
+      const driverCrnMap = {};
+
       window.onload = function () {
         [
           "entityRef",
@@ -137,7 +141,6 @@
           if (saved) document.getElementById(id).value = saved;
         });
       }[
-        // Save credentials on change
         ("entityRef",
         "apiKey",
         "clientId",
@@ -211,15 +214,17 @@
           const table = document.querySelector("#driverTable tbody");
           table.innerHTML = "";
           data.forEach(driver => {
+            driverCrnMap[driver.id] = driver.crn;
             const row = table.insertRow();
             row.innerHTML = `
             <td>${driver.id}</td>
             <td>${driver.firstName}</td>
             <td>${driver.lastName}</td>
             <td>${driver.status}</td>
+            <td>${driver.crn}</td>
             <td>
-              <button onclick="fillForm('${driver.id}', '${driver.firstName}', '${driver.lastName}')">Edit</button>
-              <button onclick="deactivateDriver('${driver.id}')">Deactivate</button>
+              <button onclick="fillForm('${driver.id}', '${driver.firstName}', '${driver.lastName}', '${driver.crn}')">Edit</button>
+              <button onclick="deactivateDriver('${driver.crn}', '${driver.id}')">Deactivate</button>
             </td>`;
           });
         } catch (err) {
@@ -228,31 +233,31 @@
         }
       }
 
-      function fillForm(id, firstName, lastName) {
+      function fillForm(id, firstName, lastName, crn) {
         document.getElementById("driverId").value = id;
         document.getElementById("firstName").value = firstName;
         document.getElementById("lastName").value = lastName;
+        document.getElementById("driverCrn").value = crn;
       }
 
-      async function deactivateDriver(id) {
+      async function deactivateDriver(crn, id) {
         if (!confirm(`Deactivate driver ${id}?`)) return;
         const entityRef = document.getElementById("entityRef").value;
         const apiKey = document.getElementById("apiKey").value;
         const token = document.getElementById("bearerToken").value;
 
+        const url = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${crn}`;
+
         try {
-          const response = await fetch(
-            `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${id}`,
-            {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-                "x-api-key": apiKey,
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({ id, status: "INACTIVE" }),
-            }
-          );
+          const response = await fetch(url, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": apiKey,
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ id, status: "INACTIVE" }),
+          });
           const result = await response.json();
           document.getElementById("response").textContent =
             `✅ Driver ${id} deactivated.\n` + JSON.stringify(result, null, 2);
@@ -272,6 +277,7 @@
           const apiKey = document.getElementById("apiKey").value;
           const token = document.getElementById("bearerToken").value;
           const driverId = document.getElementById("driverId").value;
+          const driverCrn = document.getElementById("driverCrn").value;
 
           const driverData = {
             id: driverId,
@@ -280,23 +286,13 @@
             status: "ACTIVE",
           };
 
-          const getUrl = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${driverId}`;
-          const putUrl = getUrl;
+          const putUrl = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${driverCrn}`;
           const postUrl = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers`;
 
           try {
-            const checkRes = await fetch(getUrl, {
-              method: "GET",
-              headers: {
-                "x-api-key": apiKey,
-                Authorization: `Bearer ${token}`,
-              },
-            });
-
-            const isExisting = checkRes.status === 200;
-
-            const response = await fetch(isExisting ? putUrl : postUrl, {
-              method: isExisting ? "PUT" : "POST",
+            const usePut = Boolean(driverCrn);
+            const response = await fetch(usePut ? putUrl : postUrl, {
+              method: usePut ? "PUT" : "POST",
               headers: {
                 "Content-Type": "application/json",
                 "x-api-key": apiKey,
@@ -307,9 +303,8 @@
 
             const result = await response.json();
             document.getElementById("response").textContent =
-              `✅ ${
-                isExisting ? "Updated" : "Created"
-              } driver successfully.\n` + JSON.stringify(result, null, 2);
+              `✅ ${usePut ? "Updated" : "Created"} driver successfully.\n` +
+              JSON.stringify(result, null, 2);
             fetchDrivers();
           } catch (err) {
             document.getElementById("response").textContent =

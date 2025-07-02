@@ -1,4 +1,4 @@
-<!-- Full HTML including PATCH and payload viewer -->
+<!-- Full HTML with Reactivate Button and Status Filter -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -29,6 +29,7 @@
       }
       input,
       button,
+      select,
       textarea {
         width: 100%;
         padding: 8px;
@@ -110,6 +111,13 @@
 
         <button type="submit">Create or Update Driver</button>
       </form>
+
+      <label for="statusFilter">Filter by Status</label>
+      <select id="statusFilter" onchange="fetchDrivers()">
+        <option value="ALL">ALL</option>
+        <option value="ACTIVE">ACTIVE</option>
+        <option value="INACTIVE">INACTIVE</option>
+      </select>
 
       <button onclick="fetchDrivers()">Fetch Drivers</button>
       <div id="response"></div>
@@ -204,6 +212,7 @@
         const entityRef = document.getElementById("entityRef").value;
         const apiKey = document.getElementById("apiKey").value;
         const token = document.getElementById("bearerToken").value;
+        const filter = document.getElementById("statusFilter").value;
 
         try {
           const res = await fetch(
@@ -218,20 +227,30 @@
           const data = await res.json();
           const table = document.querySelector("#driverTable tbody");
           table.innerHTML = "";
-          data.forEach(driver => {
-            driverCrnMap[driver.id] = driver.crn;
-            const row = table.insertRow();
-            row.innerHTML = `
+          data
+            .filter(d => filter === "ALL" || d.status === filter)
+            .forEach(driver => {
+              driverCrnMap[driver.id] = driver.crn;
+              const row = table.insertRow();
+              row.innerHTML = `
             <td>${driver.id}</td>
             <td>${driver.firstName}</td>
             <td>${driver.lastName}</td>
             <td>${driver.status}</td>
             <td>${driver.crn}</td>
             <td>
-              <button onclick="fillForm('${driver.id}', '${driver.firstName}', '${driver.lastName}', '${driver.crn}')">Edit</button>
-              <button onclick="deactivateDriver('${driver.crn}', '${driver.id}')">Deactivate</button>
+              <button onclick="fillForm('${driver.id}', '${
+                driver.firstName
+              }', '${driver.lastName}', '${driver.crn}')">Edit</button>
+              <button onclick="${
+                driver.status === "ACTIVE"
+                  ? `deactivateDriver('${driver.crn}', '${driver.id}')`
+                  : `reactivateDriver('${driver.crn}', '${driver.id}')`
+              }">${
+                driver.status === "ACTIVE" ? "Deactivate" : "Reactivate"
+              }</button>
             </td>`;
-          });
+            });
         } catch (err) {
           document.getElementById("response").textContent =
             "Error fetching drivers: " + err.message;
@@ -247,11 +266,20 @@
 
       async function deactivateDriver(crn, id) {
         if (!confirm(`Deactivate driver ${id}?`)) return;
+        await updateDriverStatus(crn, id, "INACTIVE");
+      }
+
+      async function reactivateDriver(crn, id) {
+        if (!confirm(`Reactivate driver ${id}?`)) return;
+        await updateDriverStatus(crn, id, "ACTIVE");
+      }
+
+      async function updateDriverStatus(crn, id, status) {
         const entityRef = document.getElementById("entityRef").value;
         const apiKey = document.getElementById("apiKey").value;
         const token = document.getElementById("bearerToken").value;
         const url = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${crn}`;
-        const payload = { status: "INACTIVE" };
+        const payload = { status };
         document.getElementById("payload").value = JSON.stringify(
           payload,
           null,
@@ -270,11 +298,12 @@
           });
           const result = await response.json();
           document.getElementById("response").textContent =
-            `✅ Driver ${id} deactivated.\n` + JSON.stringify(result, null, 2);
+            `✅ Driver ${id} ${status.toLowerCase()}d.\n` +
+            JSON.stringify(result, null, 2);
           fetchDrivers();
         } catch (err) {
           document.getElementById("response").textContent =
-            "Error deactivating driver: " + err.message;
+            "Error updating status: " + err.message;
         }
       }
 

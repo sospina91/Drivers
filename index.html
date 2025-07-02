@@ -1,3 +1,4 @@
+<!-- Full HTML including PATCH and payload viewer -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -27,7 +28,8 @@
         font-weight: bold;
       }
       input,
-      button {
+      button,
+      textarea {
         width: 100%;
         padding: 8px;
         margin-top: 5px;
@@ -58,7 +60,8 @@
         background-color: #f1f1f1;
         cursor: pointer;
       }
-      #response {
+      #response,
+      #payload {
         margin-top: 20px;
         white-space: pre-wrap;
         background-color: #f1f1f1;
@@ -110,6 +113,8 @@
 
       <button onclick="fetchDrivers()">Fetch Drivers</button>
       <div id="response"></div>
+      <label for="payload">Last Payload Sent:</label>
+      <textarea id="payload" rows="6" readonly></textarea>
       <table id="driverTable">
         <thead>
           <tr>
@@ -245,18 +250,23 @@
         const entityRef = document.getElementById("entityRef").value;
         const apiKey = document.getElementById("apiKey").value;
         const token = document.getElementById("bearerToken").value;
-
         const url = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${crn}`;
+        const payload = { status: "INACTIVE" };
+        document.getElementById("payload").value = JSON.stringify(
+          payload,
+          null,
+          2
+        );
 
         try {
           const response = await fetch(url, {
-            method: "PUT",
+            method: "PATCH",
             headers: {
               "Content-Type": "application/json",
               "x-api-key": apiKey,
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ id, status: "INACTIVE" }),
+            body: JSON.stringify(payload),
           });
           const result = await response.json();
           document.getElementById("response").textContent =
@@ -288,6 +298,11 @@
 
           const putUrl = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${driverCrn}`;
           const postUrl = `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers`;
+          document.getElementById("payload").value = JSON.stringify(
+            driverData,
+            null,
+            2
+          );
 
           try {
             const usePut = Boolean(driverCrn);

@@ -69,6 +69,10 @@
         padding: 10px;
         border: 1px solid #ccc;
       }
+      #recordCount {
+        margin-top: 10px;
+        font-weight: bold;
+      }
     </style>
   </head>
   <body>
@@ -120,6 +124,7 @@
       </select>
 
       <button onclick="fetchDrivers()">Fetch Drivers</button>
+      <div id="recordCount"></div>
       <div id="response"></div>
       <label for="payload">Last Payload Sent:</label>
       <textarea id="payload" rows="6" readonly></textarea>
@@ -153,13 +158,15 @@
           const saved = localStorage.getItem(id);
           if (saved) document.getElementById(id).value = saved;
         });
-      }[
-        ("entityRef",
+      };
+
+      [
+        "entityRef",
         "apiKey",
         "clientId",
         "clientSecret",
         "apiScopeRef",
-        "bearerToken")
+        "bearerToken",
       ].forEach(id => {
         document.getElementById(id).addEventListener("input", e => {
           localStorage.setItem(id, e.target.value);
@@ -198,6 +205,16 @@
             }
           );
           const tokenData = await tokenResponse.json();
+
+          if (!tokenData.access_token) {
+            alert(
+              "❌ Failed to retrieve access token. Please check your credentials."
+            );
+            document.getElementById("response").textContent =
+              "Error: Access token was not returned.";
+            return;
+          }
+
           document.getElementById("bearerToken").value = tokenData.access_token;
           localStorage.setItem("bearerToken", tokenData.access_token);
           document.getElementById("response").textContent =
@@ -227,30 +244,36 @@
           const data = await res.json();
           const table = document.querySelector("#driverTable tbody");
           table.innerHTML = "";
-          data
-            .filter(d => filter === "ALL" || d.status === filter)
-            .forEach(driver => {
-              driverCrnMap[driver.id] = driver.crn;
-              const row = table.insertRow();
-              row.innerHTML = `
-            <td>${driver.id}</td>
-            <td>${driver.firstName}</td>
-            <td>${driver.lastName}</td>
-            <td>${driver.status}</td>
-            <td>${driver.crn}</td>
-            <td>
-              <button onclick="fillForm('${driver.id}', '${
-                driver.firstName
-              }', '${driver.lastName}', '${driver.crn}')">Edit</button>
-              <button onclick="${
-                driver.status === "ACTIVE"
-                  ? `deactivateDriver('${driver.crn}', '${driver.id}')`
-                  : `reactivateDriver('${driver.crn}', '${driver.id}')`
-              }">${
-                driver.status === "ACTIVE" ? "Deactivate" : "Reactivate"
-              }</button>
-            </td>`;
-            });
+
+          const filtered = data.filter(
+            d => filter === "ALL" || d.status === filter
+          );
+          document.getElementById(
+            "recordCount"
+          ).textContent = `Total Drivers: ${filtered.length}`;
+
+          filtered.forEach(driver => {
+            driverCrnMap[driver.id] = driver.crn;
+            const row = table.insertRow();
+            row.innerHTML = `
+              <td>${driver.id}</td>
+              <td>${driver.firstName}</td>
+              <td>${driver.lastName}</td>
+              <td>${driver.status}</td>
+              <td>${driver.crn}</td>
+              <td>
+                <button onclick="fillForm('${driver.id}', '${
+              driver.firstName
+            }', '${driver.lastName}', '${driver.crn}')">Edit</button>
+                <button onclick="${
+                  driver.status === "ACTIVE"
+                    ? `deactivateDriver('${driver.crn}', '${driver.id}')`
+                    : `reactivateDriver('${driver.crn}', '${driver.id}')`
+                }">${
+              driver.status === "ACTIVE" ? "Deactivate" : "Reactivate"
+            }</button>
+              </td>`;
+          });
         } catch (err) {
           document.getElementById("response").textContent =
             "Error fetching drivers: " + err.message;

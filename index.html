@@ -1,4 +1,4 @@
-<!-- Full HTML with Reactivate Button, Status Filter, and Home Location Dropdown -->
+<!-- Full HTML with Reactivate Button and Status Filter -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -111,11 +111,6 @@
         <label for="lastName">Last Name</label>
         <input type="text" id="lastName" required />
 
-        <label for="homeLocation">Home Location</label>
-        <select id="homeLocation" required>
-          <option value="">-- Select Home Location --</option>
-        </select>
-
         <input type="hidden" id="driverCrn" />
 
         <button type="submit">Create or Update Driver</button>
@@ -151,7 +146,7 @@
     <script>
       const driverCrnMap = {};
 
-      function saveLocalStorage() {
+      window.onload = function () {
         [
           "entityRef",
           "apiKey",
@@ -163,57 +158,20 @@
           const saved = localStorage.getItem(id);
           if (saved) document.getElementById(id).value = saved;
         });
-      }
-
-      function addStorageListeners() {
-        [
-          "entityRef",
-          "apiKey",
-          "clientId",
-          "clientSecret",
-          "apiScopeRef",
-          "bearerToken",
-        ].forEach(id => {
-          document.getElementById(id).addEventListener("input", e => {
-            localStorage.setItem(id, e.target.value);
-          });
-        });
-      }
-
-      async function populateLocations() {
-        const entityRef = document.getElementById("entityRef").value;
-        const apiKey = document.getElementById("apiKey").value;
-        const token = document.getElementById("bearerToken").value;
-        const dropdown = document.getElementById("homeLocation");
-        dropdown.innerHTML =
-          '<option value="">-- Select Home Location --</option>';
-
-        try {
-          const res = await fetch(
-            `https://api.us.commandalkon.io/v4/services/setup/${entityRef}/locations?activeOnly=true`,
-            {
-              headers: {
-                "x-api-key": apiKey,
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-          const data = await res.json();
-          data.forEach(loc => {
-            const option = document.createElement("option");
-            option.value = loc.crn;
-            option.textContent = loc.name || loc.id;
-            dropdown.appendChild(option);
-          });
-        } catch (err) {
-          console.error("Failed to fetch locations:", err);
-        }
-      }
-
-      window.onload = () => {
-        saveLocalStorage();
-        addStorageListeners();
       };
+
+      [
+        "entityRef",
+        "apiKey",
+        "clientId",
+        "clientSecret",
+        "apiScopeRef",
+        "bearerToken",
+      ].forEach(id => {
+        document.getElementById(id).addEventListener("input", e => {
+          localStorage.setItem(id, e.target.value);
+        });
+      });
 
       async function generateToken() {
         const entityRef = document.getElementById("entityRef").value;
@@ -224,7 +182,7 @@
 
         try {
           const loginResponse = await fetch(
-            `https://api.us.commandalkon.io/v4/services/authnz/${entityRef}/api/login`,
+            https://api.us.commandalkon.io/v4/services/authnz/${entityRef}/api/login,
             {
               method: "POST",
               headers: {
@@ -238,11 +196,11 @@
           const refreshToken = loginData.refresh_token;
 
           const tokenResponse = await fetch(
-            `https://api.us.commandalkon.io/v4/services/authnz/${entityRef}/api/tokens/refresh-access-token`,
+            https://api.us.commandalkon.io/v4/services/authnz/${entityRef}/api/tokens/refresh-access-token,
             {
               headers: {
                 "x-api-key": apiKey,
-                authorization: `Bearer ${refreshToken}`,
+                authorization: Bearer ${refreshToken},
               },
             }
           );
@@ -252,16 +210,174 @@
             alert(
               "❌ Failed to retrieve access token. Please check your credentials."
             );
+            document.getElementById("response").textContent =
+              "Error: Access token was not returned.";
             return;
           }
 
           document.getElementById("bearerToken").value = tokenData.access_token;
           localStorage.setItem("bearerToken", tokenData.access_token);
-          await populateLocations(); // fetch and load locations
+          document.getElementById("response").textContent =
+            "✅ Access token generated successfully.";
         } catch (err) {
-          alert("Error generating token: " + err.message);
+          document.getElementById("response").textContent =
+            "Error generating token: " + err.message;
         }
       }
+
+      async function fetchDrivers() {
+        const entityRef = document.getElementById("entityRef").value;
+        const apiKey = document.getElementById("apiKey").value;
+        const token = document.getElementById("bearerToken").value;
+        const filter = document.getElementById("statusFilter").value;
+
+        try {
+          const res = await fetch(
+            https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers?includeInactive=true,
+            {
+              headers: {
+                "x-api-key": apiKey,
+                Authorization: Bearer ${token},
+              },
+            }
+          );
+          const data = await res.json();
+          const table = document.querySelector("#driverTable tbody");
+          table.innerHTML = "";
+
+          const filtered = data.filter(
+            d => filter === "ALL" || d.status === filter
+          );
+          document.getElementById(
+            "recordCount"
+          ).textContent = Total Drivers: ${filtered.length};
+
+          filtered.forEach(driver => {
+            driverCrnMap[driver.id] = driver.crn;
+            const row = table.insertRow();
+            row.innerHTML =
+              <td>${driver.id}</td>
+              <td>${driver.firstName}</td>
+              <td>${driver.lastName}</td>
+              <td>${driver.status}</td>
+              <td>${driver.crn}</td>
+              <td>
+                <button onclick="fillForm('${driver.id}', '${
+              driver.firstName
+            }', '${driver.lastName}', '${driver.crn}')">Edit</button>
+                <button onclick="${
+                  driver.status === "ACTIVE"
+                    ? deactivateDriver('${driver.crn}', '${driver.id}')
+                    : reactivateDriver('${driver.crn}', '${driver.id}')
+                }">${
+              driver.status === "ACTIVE" ? "Deactivate" : "Reactivate"
+            }</button>
+              </td>;
+          });
+        } catch (err) {
+          document.getElementById("response").textContent =
+            "Error fetching drivers: " + err.message;
+        }
+      }
+
+      function fillForm(id, firstName, lastName, crn) {
+        document.getElementById("driverId").value = id;
+        document.getElementById("firstName").value = firstName;
+        document.getElementById("lastName").value = lastName;
+        document.getElementById("driverCrn").value = crn;
+      }
+
+      async function deactivateDriver(crn, id) {
+        if (!confirm(Deactivate driver ${id}?)) return;
+        await updateDriverStatus(crn, id, "INACTIVE");
+      }
+
+      async function reactivateDriver(crn, id) {
+        if (!confirm(Reactivate driver ${id}?)) return;
+        await updateDriverStatus(crn, id, "ACTIVE");
+      }
+
+      async function updateDriverStatus(crn, id, status) {
+        const entityRef = document.getElementById("entityRef").value;
+        const apiKey = document.getElementById("apiKey").value;
+        const token = document.getElementById("bearerToken").value;
+        const url = https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${crn};
+        const payload = { status };
+        document.getElementById("payload").value = JSON.stringify(
+          payload,
+          null,
+          2
+        );
+
+        try {
+          const response = await fetch(url, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": apiKey,
+              Authorization: Bearer ${token},
+            },
+            body: JSON.stringify(payload),
+          });
+          const result = await response.json();
+          document.getElementById("response").textContent =
+            ✅ Driver ${id} ${status.toLowerCase()}d.\n +
+            JSON.stringify(result, null, 2);
+          fetchDrivers();
+        } catch (err) {
+          document.getElementById("response").textContent =
+            "Error updating status: " + err.message;
+        }
+      }
+
+      document
+        .getElementById("driverForm")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          const entityRef = document.getElementById("entityRef").value;
+          const apiKey = document.getElementById("apiKey").value;
+          const token = document.getElementById("bearerToken").value;
+          const driverId = document.getElementById("driverId").value;
+          const driverCrn = document.getElementById("driverCrn").value;
+
+          const driverData = {
+            id: driverId,
+            firstName: document.getElementById("firstName").value,
+            lastName: document.getElementById("lastName").value,
+            status: "ACTIVE",
+          };
+
+          const putUrl = https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers/${driverCrn};
+          const postUrl = https://api.us.commandalkon.io/v4/services/setup/${entityRef}/drivers;
+          document.getElementById("payload").value = JSON.stringify(
+            driverData,
+            null,
+            2
+          );
+
+          try {
+            const usePut = Boolean(driverCrn);
+            const response = await fetch(usePut ? putUrl : postUrl, {
+              method: usePut ? "PUT" : "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": apiKey,
+                Authorization: Bearer ${token},
+              },
+              body: JSON.stringify(driverData),
+            });
+
+            const result = await response.json();
+            document.getElementById("response").textContent =
+              ✅ ${usePut ? "Updated" : "Created"} driver successfully.\n +
+              JSON.stringify(result, null, 2);
+            fetchDrivers();
+          } catch (err) {
+            document.getElementById("response").textContent =
+              "Error: " + err.message;
+          }
+        });
     </script>
   </body>
 </html>
